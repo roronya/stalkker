@@ -6,7 +6,7 @@ import requests
 from requests_oauthlib import OAuth1Session
 import time
 import twitter
-import multiprocessing as mp
+import threading as td
 
 FORMAT = '%(asctime)s %(name)s %(levelname)s %(message)s'
 logging.basicConfig(filename='logs/app.log', level=logging.INFO, format=FORMAT)
@@ -38,18 +38,59 @@ def create_list(target, access_token_key, access_token_secret):
                       access_token_key=access_token_key,
                       access_token_secret=access_token_secret,
                       sleep_on_rate_limit=True)
-    stalking_list = api.CreateList(name='stalking-{0}'.format(target), mode='private')
-    myfriends = [f.screen_name for f in api.GetFriends()]
     time.sleep(5)
-    member = [f.screen_name for f in api.GetFriends(screen_name=target)
-                            if not f.protected or (f.protected and f.screen_name in myfriends)] + [target]
+    while True:
+        try:
+            logger.info('{0}: create stalking-{0} list'.format(target))
+            stalking_list = api.CreateList(name='stalking-{0}'.format(target), mode='private')
+            break
+        except Exception as e:
+            logger.warning(e)
+            time.sleep(60)
+
     time.sleep(5)
-    api.CreateListsMember(list_id=stalking_list.id, screen_name=member)
+    while True:
+        try:
+            logger.info('{0}: getting myfriends'.format(target))
+            myfriends = [f.screen_name for f in api.GetFriends()]
+            break
+        except Exception as e:
+            logger.warning(e)
+            time.sleep(60)
+
     time.sleep(5)
-    logger.info('created {0} list'.format(stalking_list.slug))
+    while True:
+        try:
+            logger.info('{0}: getting member to add stalking-list'.format(target))
+            member = [f.screen_name for f in api.GetFriends(screen_name=target)
+                                    if not f.protected or (f.protected and f.screen_name in myfriends)]
+            member += [target]
+            break
+        except Exception as e:
+            logger.warning(e)
+            time.sleep(60)
+
+    delta = 25
+    for i, j in zip(range(0, len(member), delta), range(delta, len(member)+delta, delta)):
+        time.sleep(5)
+        while True:
+            try:
+                logger.info('{0}: addding {1}~{2} of member to {3}'.format(target, i, j, stalking_list.slug))
+                logger.info(member[i:j])
+                api.CreateListsMember(list_id=stalking_list.id, screen_name=member[i:j])
+                break
+            except twitter.error.TwitterError as e:
+                if e[0]['code'] == 104 or e[0]['code'] == 34:
+                    logger.error('removed stalking-list')
+                    raise Exception()
+            except Exception as e:
+                    logger.warning(e)
+                    time.sleep(60)
+    time.sleep(5)
+    logger.info('{0}: created {1} list'.format(target, stalking_list.slug))
 
     # dm 送る
-    logger.info('sending dm')
+    logger.info('{0}: sending dm'.format(target))
     stalker = stalking_list.user.screen_name
     stalking_list_url = 'https://twitter.com/{0}/lists/{1}'.format(stalker, stalking_list.slug)
     text = "リストの作成が完了しました。{0}".format(stalking_list_url)
@@ -95,8 +136,8 @@ def callback():
     access_token_key = responce.get('oauth_token')
     access_token_secret = responce.get('oauth_token_secret')
     logger.info('create background process')
-    process = mp.Process(target=create_list, args=(target, access_token_key, access_token_secret))
-    process.start()
+    thread = td.Thread(target=create_list, args=(target, access_token_key, access_token_secret))
+    thread.start()
     return render_template('thanks.html')
 
 if __name__ == '__main__':
