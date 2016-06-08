@@ -2,12 +2,5 @@
 consumer_key =
 consumer_secret =
 
-[rabbitmq]
-host = 127.0.0.1
-port = 5672
-username = guest
-password = guest
-queue = stalkker
-
 [stalkker]
 secret_key =
