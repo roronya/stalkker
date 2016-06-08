@@ -8,7 +8,8 @@ import time
 import twitter
 import multiprocessing as mp
 
-logging.basicConfig(filename='app.log', level=logging.INFO)
+FORMAT = '%(asctime)s %(name)s %(levelname)s %(message)s'
+logging.basicConfig(filename='logs/app.log', level=logging.INFO, format=FORMAT)
 logger = logging.getLogger('stalkker')
 
 logger.info('booting system')
@@ -39,8 +40,12 @@ def create_list(target, access_token_key, access_token_secret):
                       sleep_on_rate_limit=True)
     stalking_list = api.CreateList(name='stalking-{0}'.format(target), mode='private')
     myfriends = [f.screen_name for f in api.GetFriends()]
-    member = [f for f in myfriends if not f.protected or (f.protected and f.creen_name in myfriends)] + [target]
+    time.sleep(5)
+    member = [f.screen_name for f in api.GetFriends(screen_name=target)
+                            if not f.protected or (f.protected and f.screen_name in myfriends)] + [target]
+    time.sleep(5)
     api.CreateListsMember(list_id=stalking_list.id, screen_name=member)
+    time.sleep(5)
     logger.info('created {0} list'.format(stalking_list.slug))
 
     # dm 送る
